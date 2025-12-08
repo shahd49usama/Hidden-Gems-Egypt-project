@@ -1,0 +1,36 @@
+
+-- Create these measures in the 'Sites' table (Modeling > New measure)
+
+Total Sites = DISTINCTCOUNT(Sites[SiteName])
+
+Total Visitors = SUM(Sites[Visitors])
+
+Avg Rating = AVERAGE(Sites[Rating])
+
+Avg Safety = AVERAGE(Sites[SafetyScore])
+
+Avg Hotel Rating = AVERAGE(Sites[HotelRating])
+
+Hotels Count = SUM(Sites[HotelFlag])
+
+Visitors per Hotel = DIVIDE([Total Visitors], [Hotels Count])
+
+-- Normalized scores for composite index
+RatingNorm = DIVIDE([Avg Rating], 5)
+SafetyNorm = DIVIDE([Avg Safety], 3)
+
+Risk Index = 1 - (0.6 * [RatingNorm] + 0.4 * [SafetyNorm])
+
+-- Per SiteType views
+Avg Rating by Type = AVERAGEX(VALUES(Sites[SiteType]), [Avg Rating])
+Avg Safety by Type = AVERAGEX(VALUES(Sites[SiteType]), [Avg Safety])
+
+-- Ranking helpers
+Rank Type by Rating = RANKX(ALL(Sites[SiteType]), [Avg Rating], , DESC, Dense)
+Rank Type by Safety = RANKX(ALL(Sites[SiteType]), [Avg Safety], , DESC, Dense)
+
+-- Dynamic text for the summary page
+Summary Text =
+"Total Sites: " & FORMAT([Total Sites], "#,0") &
+" | Avg Rating: " & FORMAT([Avg Rating], "0.0") &
+" | Avg Safety: " & FORMAT(DIVIDE([Avg Safety], 3), "0%")
