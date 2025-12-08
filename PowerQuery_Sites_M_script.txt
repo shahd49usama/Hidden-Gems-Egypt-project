@@ -1,0 +1,49 @@
+let
+    // Replace the Source step with your real source after you connect the Excel in Power BI
+    Source = Excel.Workbook(File.Contents("C:\\path\\to\\Project_final_data.xlsx"), null, true),
+    Sheet1_Sheet = Source{[Item="Sheet1",Kind="Sheet"]}[Data],
+    PromotedHeaders = Table.PromoteHeaders(Sheet1_Sheet, [PromoteAllScalars=true]),
+    Renamed = Table.RenameColumns(PromotedHeaders, {
+        {"city", "City"},
+        {"Tourist_Site", "SiteName"},
+        {"Site_type", "SiteType"},
+        {"Rating out of 5", "Rating"},
+        {"Number of rating", "RatingCount"},
+        {"Visitor- count", "Visitors"},
+        {"Climate_Type", "ClimateType"},
+        {"Safety_Level", "Safety_Level"},
+        {"Transport_Cost", "Transport_Cost"},
+        {"Food_Availability", "Food_Availability"},
+        {"Entry_Fee", "Entry_Fee"},
+        {"Hotel_Availability", "HotelAvailable"},
+        {"Hotel_Rating", "HotelRating"},
+        {"Tour_Availability_in_Hotel", "TourInHotel"},
+        {"Accessibility", "Accessibility"},
+        {"Visitor_Nationality", "Visitor_Nationality"}
+    }, MissingField.Ignore),
+    ChangedTypes = Table.TransformColumnTypes(Renamed, {
+        {"Rating", type number},
+        {"RatingCount", Int64.Type},
+        {"Visitors", Int64.Type},
+        {"Transport_Cost", type number},
+        {"Entry_Fee", type number},
+        {"HotelRating", type number}
+    }, "en-US"),
+    Added_SafetyScore = if Table.HasColumns(ChangedTypes, "Safety_Level") then
+        Table.AddColumn(ChangedTypes, "SafetyScore", each
+            if [Safety_Level] = "High" then 3 else if [Safety_Level] = "Medium" then 2 else if [Safety_Level] = "Low" then 1 else null, Int64.Type)
+    else ChangedTypes,
+    Added_HotelFlag = if Table.HasColumns(Added_SafetyScore, "HotelAvailable") then
+        Table.AddColumn(Added_SafetyScore, "HotelFlag", each let t = Text.Lower(Text.Trim(Text.From([HotelAvailable]))) in if List.Contains({"yes","available","true","وجود","متاح"}, t) then 1 else 0, Int64.Type)
+    else Added_SafetyScore,
+    SplitGPS = if Table.HasColumns(Added_HotelFlag, "GPS_Coordinates") then
+        let
+            Cleaned = Table.TransformColumns(Added_HotelFlag, {{"GPS_Coordinates", each Text.Replace(Text.Replace(Text.Replace(_, "°", ""), "N", ""), "E", ""), type text}}),
+            Split = Table.SplitColumn(Cleaned, "GPS_Coordinates", Splitter.SplitTextByDelimiter(",", QuoteStyle.Csv), {"Latitude", "Longitude"}),
+            ToNumber = Table.TransformColumnTypes(Split, {{"Latitude", type number}, {"Longitude", type number}}, "en-US")
+        in
+            ToNumber
+    else Added_HotelFlag,
+    Final = SplitGPS
+in
+    Final
